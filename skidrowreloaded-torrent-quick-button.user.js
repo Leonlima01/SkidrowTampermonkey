@@ -2,8 +2,8 @@
 // @name         Skidrow Reloaded - Botao rapido de torrent
 // @namespace    local.codex.skidrowreloaded
 // @version      1.0.0
-// @downloadURL  https://raw.githubusercontent.com/seuusuario/meu-repo/main/meu-script.user.js
-// @updateURL    https://raw.githubusercontent.com/seuusuario/meu-repo/main/meu-script.user.js
+// @downloadURL  https://github.com/Leonlima01/SkidrowTampermonkey/blob/main/skidrowreloaded-torrent-quick-button.user.js
+// @updateURL    https://github.com/Leonlima01/SkidrowTampermonkey/blob/main/skidrowreloaded-torrent-quick-button.user.js
 // @description  Adiciona um botao "TORRENT" ao lado de cada jogo na pagina principal do skidrowreloaded.com. O botao busca o link na pagina do jogo quando clicado.
 // @author       Codex
 // @match        *://skidrowreloaded.com/
