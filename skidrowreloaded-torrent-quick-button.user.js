@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Skidrow Reloaded - Botao rapido de torrent
 // @namespace    local.codex.skidrowreloaded
-// @version      1.0.21
+// @version      1.0.3
 // @downloadURL  https://github.com/Leonlima01/SkidrowTampermonkey/raw/refs/heads/main/skidrowreloaded-torrent-quick-button.user.js
 // @updateURL    https://github.com/Leonlima01/SkidrowTampermonkey/raw/refs/heads/main/skidrowreloaded-torrent-quick-button.user.js
 // @description  Adiciona um botao "TORRENT" ao lado de cada jogo na pagina principal do skidrowreloaded.com. O botao busca o link na pagina do jogo quando clicado.
@@ -12,6 +12,10 @@
 // @match        *://www.skidrowreloaded.com/page/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_openInTab
+// @grant        GM_xmlhttpRequest
+// @connect      192.168.0.22
+// @connect      127.0.0.1
+// @connect      localhost
 // @connect      skidrowreloaded.com
 // @connect      www.skidrowreloaded.com
 // ==/UserScript==
@@ -93,13 +97,40 @@
         }
       });
 
+      const transmissionButton = document.createElement("button");
+      transmissionButton.type = "button";
+      transmissionButton.className = BUTTON_CLASS;
+      transmissionButton.textContent = "TRANSMISSION";
+      transmissionButton.classList.add("sr-transmission-button");
+
+      transmissionButton.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        try {
+          const torrentUrl =
+            cache.get(gameLink.href) || await fetchTorrentUrl(gameLink.href);
+
+          const response = await addMagnet(torrentUrl);
+          
+          console.log(response);
+          
+          alert("Torrent enviado para o servidor!");
+
+        } catch (err) {
+          console.error(err);
+
+          alert("Falha ao enviar torrent");
+        }
+      });
+
       const status = document.createElement("span");
       status.className = STATUS_CLASS;
       status.setAttribute("aria-live", "polite");
 
       const wrap = document.createElement("span");
       wrap.className = "sr-torrent-quick-wrap";
-      wrap.append(openButton, copyButton, status);
+      wrap.append(openButton, copyButton, transmissionButton, status);
 
       target.insertAdjacentElement("afterend", wrap);
     });
@@ -318,8 +349,80 @@
         border-color: #00bfff;
         color: #00bfff;
       }
+
+      .sr-transmission-button {
+        border-color: #eb2f2f;
+        color: #eb2f2f;
+      }
     `;
 
     document.head.appendChild(style);
+  }
+
+  async function transmissionRpc(payload) {
+    const auth = btoa("casaos:casaos");
+
+    return new Promise((resolve, reject) => {
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: "http://192.168.0.22:9091/transmission/rpc",
+            headers: {
+                "Authorization": `Basic ${auth}`,
+                "Content-Type": "application/json"
+            },
+            data: JSON.stringify(payload),
+
+            onload(response) {
+                // Primeira chamada normalmente retorna 409
+                if (response.status === 409) {
+                    const match = response.responseHeaders.match(
+                        /X-Transmission-Session-Id:\s*(.+)/i
+                    );
+
+                    if (!match) {
+                        reject(new Error("Session ID não encontrado"));
+                        return;
+                    }
+
+                    const sessionId = match[1].trim();
+
+                    // Reenvia automaticamente
+                    GM_xmlhttpRequest({
+                        method: "POST",
+                        url: "http://192.168.0.22:9091/transmission/rpc",
+                        headers: {
+                            "Authorization": `Basic ${auth}`,
+                            "Content-Type": "application/json",
+                            "X-Transmission-Session-Id": sessionId
+                        },
+                        data: JSON.stringify(payload),
+
+                        onload(secondResponse) {
+                            resolve(JSON.parse(secondResponse.responseText));
+                        },
+
+                        onerror: reject
+                    });
+
+                    return;
+                }
+
+                resolve(JSON.parse(response.responseText));
+            },
+
+            onerror: reject
+        });
+    });
+  }
+
+  async function addMagnet(magnetUrl) {
+    const result = await transmissionRpc({
+        method: "torrent-add",
+        arguments: {
+            filename: magnetUrl
+        }
+    });
+
+    return result;
   }
 })();
