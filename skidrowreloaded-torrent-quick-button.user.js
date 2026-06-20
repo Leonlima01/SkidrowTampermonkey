@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Skidrow Reloaded - Botao rapido de torrent
 // @namespace    local.codex.skidrowreloaded
-// @version      1.1.1
+// @version      1.1.2
 // @downloadURL  https://github.com/Leonlima01/SkidrowTampermonkey/raw/refs/heads/main/skidrowreloaded-torrent-quick-button.user.js
 // @updateURL    https://github.com/Leonlima01/SkidrowTampermonkey/raw/refs/heads/main/skidrowreloaded-torrent-quick-button.user.js
 // @description  Adiciona um botao "TORRENT" ao lado de cada jogo na pagina principal do skidrowreloaded.com. O botao busca o link na pagina do jogo quando clicado.
@@ -28,20 +28,33 @@
   const cache = new Map();
 
   addStyles();
-  addButtonsToListing();
+  addButtonsToListing().catch(console.error);
 
-  function addButtonsToListing() {
+  async function addButtonsToListing() {
     const posts = findListingPosts();
 
-    posts.forEach((post) => {
-      if (post.querySelector(`.${BUTTON_CLASS}`)) return;
+    for (const post of posts) {
+      if (post.querySelector(`.${BUTTON_CLASS}`)) continue;
 
       const gameLink = findGameLink(post);
-      if (!gameLink) return;
+      if (!gameLink) continue;
 
       const target = findButtonTarget(post, gameLink);
-      if (!target) return;
+      if (!target) continue;
 
+      let torrentUrl;
+
+      try {
+          torrentUrl =
+              cache.get(gameLink.href) ||
+              await fetchTorrentUrl(gameLink.href);
+
+          cache.set(gameLink.href, torrentUrl);
+      }
+      catch {
+          continue; // não encontrou torrent
+      }
+      
       const openButton = document.createElement("button");
       openButton.type = "button";
       openButton.className = BUTTON_CLASS;
@@ -52,7 +65,7 @@
         event.stopPropagation();
 
         try {
-          const torrentUrl =
+          torrentUrl =
             cache.get(gameLink.href) || await fetchTorrentUrl(gameLink.href);
 
           cache.set(gameLink.href, torrentUrl);
@@ -73,7 +86,7 @@
         event.stopPropagation();
 
         try {
-          const torrentUrl =
+          torrentUrl =
             cache.get(gameLink.href) || await fetchTorrentUrl(gameLink.href);
 
           cache.set(gameLink.href, torrentUrl);
@@ -108,21 +121,12 @@
         event.stopPropagation();
 
         try {
-          const torrentUrl =
+          torrentUrl =
             cache.get(gameLink.href) || await fetchTorrentUrl(gameLink.href);
 
           const response = await addMagnet(torrentUrl);
-          
-          const abrirTransmission = confirm(
-            "Torrent enviado para o servidor!\n\nDeseja abrir o Transmission?"
-          );
 
-          if (abrirTransmission) {
-            window.open(
-              "http://192.168.0.22:9091/transmission/web/",
-              "_blank"
-            );
-          }
+          showTransmissionModal();
 
         } catch (err) {
           console.error(err);
@@ -140,7 +144,87 @@
       wrap.append(openButton, copyButton, transmissionButton, status);
 
       target.insertAdjacentElement("afterend", wrap);
-    });
+    };
+  }
+
+  function showTransmissionModal() {
+    const overlay = document.createElement("div");
+
+    overlay.style.cssText = `
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.6);
+        z-index: 999999;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    `;
+
+    const modal = document.createElement("div");
+
+    modal.style.cssText = `
+        background: #1f1f1f;
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        min-width: 320px;
+        text-align: center;
+        box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        font-family: Arial, sans-serif;
+    `;
+
+    modal.innerHTML = `
+        <h3 style="margin-top:0;">
+            Torrent enviado!
+        </h3>
+
+        <p>
+            Deseja abrir o Transmission?
+        </p>
+
+        <div style="
+            display:flex;
+            justify-content:center;
+            gap:10px;
+            margin-top:15px;
+        ">
+            <button id="tm-yes" style="
+                border:1px solid #fff;
+                color: #fff;
+                background: #2f2f2f;
+                padding:6px 12px;
+                cursor:pointer;
+            ">
+                Sim
+            </button>
+
+            <button id="tm-no" style="
+                border:1px solid #fff;
+                color: #fff;
+                background: #2f2f2f;
+                padding:6px 12px;
+                cursor:pointer;
+            ">
+                Não
+            </button>
+        </div>
+    `;
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    document.getElementById("tm-yes").onclick = () => {
+        window.open(
+            "http://192.168.0.22:9091/transmission/web/",
+            "_blank"
+        );
+
+        overlay.remove();
+    };
+
+    document.getElementById("tm-no").onclick = () => {
+        overlay.remove();
+    };
   }
 
   function findListingPosts() {
@@ -198,7 +282,7 @@
 
   function findButtonTarget(post, gameLink) {
     return (
-      post.querySelector("h1, h2, h3") ||
+      post.querySelector(".meta","h1, h2, h3") ||
       gameLink.closest("p") ||
       gameLink.parentElement
     );
