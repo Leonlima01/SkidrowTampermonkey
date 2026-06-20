@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Skidrow Reloaded - Botao rapido de torrent
 // @namespace    local.codex.skidrowreloaded
-// @version      1.0.0
+// @version      1.0.1
 // @downloadURL  https://github.com/Leonlima01/SkidrowTampermonkey/blob/main/skidrowreloaded-torrent-quick-button.user.js
 // @updateURL    https://github.com/Leonlima01/SkidrowTampermonkey/blob/main/skidrowreloaded-torrent-quick-button.user.js
 // @description  Adiciona um botao "TORRENT" ao lado de cada jogo na pagina principal do skidrowreloaded.com. O botao busca o link na pagina do jogo quando clicado.
@@ -38,15 +38,59 @@
       const target = findButtonTarget(post, gameLink);
       if (!target) return;
 
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = BUTTON_CLASS;
-      button.textContent = "TORRENT";
-      button.title = "Buscar e abrir o link de torrent deste jogo";
-      button.addEventListener("click", (event) => {
+      const openButton = document.createElement("button");
+      openButton.type = "button";
+      openButton.className = BUTTON_CLASS;
+      openButton.textContent = "TORRENT";
+
+      openButton.addEventListener("click", async (event) => {
         event.preventDefault();
         event.stopPropagation();
-        openTorrentForGame(gameLink.href, button);
+
+        try {
+          const torrentUrl =
+            cache.get(gameLink.href) || await fetchTorrentUrl(gameLink.href);
+
+          cache.set(gameLink.href, torrentUrl);
+          openUrl(torrentUrl);
+        } catch (err) {
+          console.error(err);
+        }
+      });
+
+      const copyButton = document.createElement("button");
+      copyButton.type = "button";
+      copyButton.className = BUTTON_CLASS;
+      copyButton.textContent = "COPIAR";
+      copyButton.classList.add("sr-copy-button");
+
+      copyButton.addEventListener("click", async (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+
+        try {
+          const torrentUrl =
+            cache.get(gameLink.href) || await fetchTorrentUrl(gameLink.href);
+
+          cache.set(gameLink.href, torrentUrl);
+
+          await navigator.clipboard.writeText(torrentUrl);
+
+          copyButton.textContent = "COPIADO!";
+
+          setTimeout(() => {
+            copyButton.textContent = "COPIAR";
+          }, 1500);
+
+        } catch (err) {
+          console.error(err);
+
+          copyButton.textContent = "ERRO";
+
+          setTimeout(() => {
+            copyButton.textContent = "COPIAR";
+          }, 1500);
+        }
       });
 
       const status = document.createElement("span");
@@ -55,7 +99,7 @@
 
       const wrap = document.createElement("span");
       wrap.className = "sr-torrent-quick-wrap";
-      wrap.append(button, status);
+      wrap.append(openButton, copyButton, status);
 
       target.insertAdjacentElement("afterend", wrap);
     });
@@ -268,6 +312,11 @@
       .${STATUS_CLASS} {
         color: #bbb;
         font: 11px Arial, Helvetica, sans-serif;
+      }
+
+      .sr-copy-button {
+        border-color: #00bfff;
+        color: #00bfff;
       }
     `;
 
