@@ -113,9 +113,16 @@
 
           const response = await addMagnet(torrentUrl);
           
-          console.log(response);
-          
-          alert("Torrent enviado para o servidor!");
+          const abrirTransmission = confirm(
+            "Torrent enviado para o servidor!\n\nDeseja abrir o Transmission?"
+          );
+
+          if (abrirTransmission) {
+            window.open(
+              "http://192.168.0.22:9091/transmission/web/",
+              "_blank"
+            );
+          }
 
         } catch (err) {
           console.error(err);
